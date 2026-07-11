@@ -458,14 +458,38 @@
     });
 
     // ===== RENDER LOGIC WITH TOGGLE SUPPORTS =====
-   function renderHistory(transactions) {
+ function renderHistory(transactions) {
   const list = document.getElementById('expenseList');
   if (!transactions || transactions.length === 0) {
     list.innerHTML = `<p class="text-center text-slate-400 py-6 text-sm">No recent transactions found.</p>`;
     return;
   }
 
-  const grouped = groupByMonthAndWeek(transactions);
+  // Fungsi internal untuk memastikan semua format tanggal (DD/MM/YYYY atau YYYY-MM-DD) dibaca dengan benar
+  function parseTransactionDate(dateStr) {
+    if (dateStr && typeof dateStr === 'string' && dateStr.includes('/')) {
+      const parts = dateStr.split('/');
+      return new Date(parts[2], parts[1] - 1, parts[0]);
+    }
+    return dateStr ? new Date(dateStr) : new Date();
+  }
+
+  // Perbaiki tanggal pada data transaksi mentah sebelum dikelompokkan
+  const normalizedTransactions = transactions.map(t => {
+    let parsedDate = parseTransactionDate(t.date);
+    if (isNaN(parsedDate.getTime())) {
+      parsedDate = new Date();
+    }
+    // Set format ISO standar agar fungsi groupByMonthAndWeek bawaan Anda tidak bingung
+    return {
+      ...t,
+      processedDate: parsedDate,
+      date: parsedDate.toISOString().split('T')[0] 
+    };
+  });
+
+  // Gunakan data yang sudah dinormalisasi
+  const grouped = groupByMonthAndWeek(normalizedTransactions);
   const sortedMonths = Object.keys(grouped).sort((a, b) => b.localeCompare(a));
 
   list.innerHTML = sortedMonths.map(monthKey => {
@@ -483,12 +507,11 @@
       const weekDomId = `week-${weekKey}`;
 
       const transactionsHtml = weekGroup.transactions
-        .sort((a, b) => new Date(b.date || new Date()) - new Date(a.date || new Date()))
+        .sort((a, b) => b.processedDate - a.processedDate)
         .map(t => {
           const amount = parseFloat(t.jumlah) || 0;
           let category = t.kategori || 'Others';
-          const tDate = new Date(t.date || new Date());
-          const dateStr = formatDateFull(tDate);
+          const dateStr = formatDateFull(t.processedDate);
           
           const emojiMap = {
             'Food': '🍔', 'Transport': '🚗', 'Fuel': '⛽', 'Bills': '💡',
@@ -551,7 +574,7 @@
     `;
   }).join('');
 }
-
+    
     checkLogin();
   </script>
   </div>
