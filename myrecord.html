@@ -541,15 +541,15 @@
                 const categoryEmoji = emojiMap[category] || '📦';
                 
                 return `
-                  <div class="flex justify-between items-center py-2 px-3 border-b border-slate-200 last:border-b-0">
+                  <div class="flex justify-between items-center py-3 px-4 border-b border-slate-200 last:border-b-0">
                     <div class="flex-1 min-w-0">
-                      <div class="font-semibold text-slate-800 text-sm">${t.barang}</div>
-                      <span class="inline-block text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded mt-1">
+                      <div class="font-semibold text-slate-800 text-base">${t.barang}</div>
+                      <span class="inline-block text-sm bg-slate-100 text-slate-600 px-2.5 py-1.5 rounded mt-1.5">
                         ${categoryEmoji} ${category}
                       </span>
                     </div>
-                    <div class="text-right ml-3 flex-shrink-0">
-                      <div class="font-bold text-slate-900">Rp ${amount.toLocaleString('id-ID')}</div>
+                    <div class="text-right ml-4 flex-shrink-0">
+                      <div class="font-bold text-slate-900 text-base">Rp ${amount.toLocaleString('id-ID')}</div>
                     </div>
                   </div>
                 `;
@@ -557,17 +557,17 @@
 
             return `
               <div class="border border-slate-200 rounded-lg overflow-hidden">
-                <div onclick="toggleSection('${dayDomId}')" class="bg-slate-100 px-4 py-2.5 cursor-pointer flex justify-between items-center hover:bg-slate-150 transition">
-                  <span class="text-sm font-semibold text-slate-700">${dayLabel}</span>
+                <div onclick="toggleSection('${dayDomId}')" class="bg-slate-100 px-4 py-3 cursor-pointer flex justify-between items-center hover:bg-slate-150 transition">
+                  <span class="text-base font-semibold text-slate-700">${dayLabel}</span>
                   <svg id="arrow-${dayDomId}" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transition-transform transform rotate-180 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
                   </svg>
                 </div>
                 <div id="${dayDomId}" class="bg-white">
                   ${transactionsHtml}
-                  <div class="px-4 py-2.5 bg-slate-50 border-t border-slate-200 flex justify-between items-center text-sm">
-                    <span class="font-semibold text-slate-600">Day Total</span>
-                    <span class="font-bold text-slate-900">Rp ${dayGroup.total.toLocaleString('id-ID')}</span>
+                  <div class="px-4 py-3 bg-slate-50 border-t border-slate-200 flex justify-between items-center">
+                    <span class="font-semibold text-slate-600 text-sm">Day Total</span>
+                    <span class="font-bold text-slate-900 text-base">Rp ${dayGroup.total.toLocaleString('id-ID')}</span>
                   </div>
                 </div>
               </div>
@@ -576,17 +576,17 @@
 
           return `
             <div class="border border-slate-300 rounded-lg overflow-hidden">
-              <div onclick="toggleSection('${weekDomId}')" class="bg-slate-200 px-4 py-3 cursor-pointer flex justify-between items-center hover:bg-slate-250 transition">
-                <span class="font-semibold text-slate-800">${weekLabel}</span>
+              <div onclick="toggleSection('${weekDomId}')" class="bg-slate-200 px-4 py-3.5 cursor-pointer flex justify-between items-center hover:bg-slate-250 transition">
+                <span class="font-semibold text-slate-800 text-base">${weekLabel}</span>
                 <svg id="arrow-${weekDomId}" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transition-transform transform rotate-180 text-slate-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
                 </svg>
               </div>
-              <div id="${weekDomId}" class="bg-white space-y-3 p-3">
+              <div id="${weekDomId}" class="bg-white space-y-3 p-4">
                 ${daysHtml}
-                <div class="px-3 py-2.5 bg-slate-50 border border-slate-200 rounded flex justify-between items-center text-sm">
-                  <span class="font-semibold text-slate-700">Week Total</span>
-                  <span class="font-bold text-slate-900">Rp ${weekGroup.total.toLocaleString('id-ID')}</span>
+                <div class="px-4 py-3 bg-slate-50 border border-slate-200 rounded flex justify-between items-center">
+                  <span class="font-semibold text-slate-700 text-sm">Week Total</span>
+                  <span class="font-bold text-slate-900 text-base">Rp ${weekGroup.total.toLocaleString('id-ID')}</span>
                 </div>
               </div>
             </div>
@@ -595,17 +595,17 @@
 
         return `
           <div class="border border-slate-400 rounded-lg overflow-hidden">
-            <div onclick="toggleSection('${monthDomId}')" class="bg-indigo-600 text-white px-4 py-3 cursor-pointer flex justify-between items-center hover:bg-indigo-700 transition">
-              <span class="font-bold text-lg">${monthLabel}</span>
+            <div onclick="toggleSection('${monthDomId}')" class="bg-indigo-600 text-white px-4 py-4 cursor-pointer flex justify-between items-center hover:bg-indigo-700 transition">
+              <span class="font-bold text-xl">${monthLabel}</span>
               <svg id="arrow-${monthDomId}" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 transition-transform transform rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
               </svg>
             </div>
-            <div id="${monthDomId}" class="bg-white space-y-3 p-4">
+            <div id="${monthDomId}" class="bg-white space-y-4 p-4">
               ${weeksHtml}
-              <div class="px-4 py-3 bg-slate-100 border border-slate-300 rounded flex justify-between items-center text-sm font-bold">
-                <span class="text-slate-800">MONTH TOTAL</span>
-                <span class="text-lg text-slate-900">Rp ${monthGroup.total.toLocaleString('id-ID')}</span>
+              <div class="px-4 py-3 bg-slate-100 border border-slate-300 rounded flex justify-between items-center">
+                <span class="text-slate-800 font-bold text-base">MONTH TOTAL</span>
+                <span class="text-lg text-slate-900 font-bold">Rp ${monthGroup.total.toLocaleString('id-ID')}</span>
               </div>
             </div>
           </div>
