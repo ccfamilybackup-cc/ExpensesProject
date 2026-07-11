@@ -458,93 +458,99 @@
     });
 
     // ===== RENDER LOGIC WITH TOGGLE SUPPORTS =====
-    function renderHistory(transactions) {
-      const list = document.getElementById('expenseList');
-      
-      if (!transactions || transactions.length === 0) {
-        list.innerHTML = `<p class="text-center text-slate-400 py-6 text-sm">No recent transactions found.</p>`;
-        return;
-      }
+   function renderHistory(transactions) {
+  const list = document.getElementById('expenseList');
+  if (!transactions || transactions.length === 0) {
+    list.innerHTML = `<p class="text-center text-slate-400 py-6 text-sm">No recent transactions found.</p>`;
+    return;
+  }
 
-      const grouped = groupByMonthAndWeek(transactions);
-      const sortedMonths = Object.keys(grouped).sort((a, b) => b.localeCompare(a));
+  const grouped = groupByMonthAndWeek(transactions);
+  const sortedMonths = Object.keys(grouped).sort((a, b) => b.localeCompare(a));
 
-      list.innerHTML = sortedMonths.map(monthKey => {
-        const monthGroup = grouped[monthKey];
-        const monthLabel = formatMonth(monthGroup.date);
-        const monthDomId = `month-${monthKey}`;
-        
-        const sortedWeeks = Object.keys(monthGroup.weeks)
-          .sort((a, b) => monthGroup.weeks[b].weekOfMonth - monthGroup.weeks[a].weekOfMonth);
-        
-        const weeksHtml = sortedWeeks.map(weekKey => {
-          const weekGroup = monthGroup.weeks[weekKey];
-          const { startDate, endDate } = getWeekDateRange(weekGroup.date);
-          const weekLabel = `Week ${weekGroup.weekOfMonth} • ${formatDateShort(startDate)} - ${formatDateShort(endDate)}`;
-          const weekDomId = `week-${weekKey}`;
+  list.innerHTML = sortedMonths.map(monthKey => {
+    const monthGroup = grouped[monthKey];
+    const monthLabel = formatMonth(monthGroup.date);
+    const monthDomId = `month-${monthKey}`;
+    
+    const sortedWeeks = Object.keys(monthGroup.weeks)
+      .sort((a, b) => monthGroup.weeks[b].weekOfMonth - monthGroup.weeks[a].weekOfMonth);
 
-          const transactionsHtml = weekGroup.transactions
-            .sort((a, b) => new Date(b.date || new Date()) - new Date(a.date || new Date()))
-            .map(t => {
-              const amount = parseFloat(t.jumlah) || 0;
-              const category = t.kategori || 'Others';
-              const tDate = new Date(t.date || new Date());
-              const dateStr = formatDateFull(tDate);
-              
-              return `
-                <div class="receipt-item">
-                  <div>
-                    <div class="font-medium text-slate-800 text-[0.8rem]">${t.barang}</div>
-                    <div class="text-slate-500 text-[0.7rem] leading-tight">${category} • ${dateStr}</div>
-                  </div>
-                  <div class="font-semibold text-slate-900 text-[0.8rem]">Rp ${amount.toLocaleString('id-ID')}</div>
-                </div>
-              `;
-            }).join('');
+    const weeksHtml = sortedWeeks.map(weekKey => {
+      const weekGroup = monthGroup.weeks[weekKey];
+      const { startDate, endDate } = getWeekDateRange(weekGroup.date);
+      const weekLabel = `Week ${weekGroup.weekOfMonth} • ${formatDateShort(startDate)} - ${formatDateShort(endDate)}`;
+      const weekDomId = `week-${weekKey}`;
+
+      const transactionsHtml = weekGroup.transactions
+        .sort((a, b) => new Date(b.date || new Date()) - new Date(a.date || new Date()))
+        .map(t => {
+          const amount = parseFloat(t.jumlah) || 0;
+          let category = t.kategori || 'Others';
+          const tDate = new Date(t.date || new Date());
+          const dateStr = formatDateFull(tDate);
+          
+          const emojiMap = {
+            'Food': '🍔', 'Transport': '🚗', 'Fuel': '⛽', 'Bills': '💡',
+            'Shopping': '🛒', 'Entertainment': '🎮', 'Health': '💊', 'Others': '📦'
+          };
+          const categoryEmoji = emojiMap[category] || '📦';
 
           return `
-            <div class="bg-white p-3 rounded-lg border border-slate-200 shadow-sm">
-              <!-- Header Minggu (Bisa di-toggle) -->
-              <div onclick="toggleSection('${weekDomId}')" class="text-[0.7rem] font-bold text-slate-600 mb-2 pb-2 border-b border-dashed border-slate-300 flex justify-between items-center cursor-pointer select-none">
-                <span>${weekLabel}</span>
-                <svg id="arrow-${weekDomId}" xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 transition-transform transform rotate-180 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                </svg>
+            <div class="receipt-item flex justify-between items-start py-2 border-b border-dotted border-slate-300 text-[0.8rem]">
+              <div class="flex-1 min-w-0 pr-2">
+                <div class="font-bold text-slate-800 text-[0.825rem] truncate">${t.barang}</div>
+                <div class="text-slate-400 text-[0.675rem] mt-0.5">${dateStr}</div>
               </div>
-              <!-- Konten Transaksi Minggu Ini -->
-              <div id="${weekDomId}" class="space-y-1">
-                ${transactionsHtml}
-                <div class="receipt-total mt-2 pt-2 text-[0.75rem]">
-                  <span class="font-semibold">WEEK TOTAL</span>
-                  <span class="font-bold">Rp ${weekGroup.total.toLocaleString('id-ID')}</span>
-                </div>
+              <div class="flex flex-col items-end flex-shrink-0 text-right">
+                <span class="font-black text-slate-900 text-[0.825rem]">Rp ${amount.toLocaleString('id-ID')}</span>
+                <span class="inline-block bg-slate-200/70 text-slate-700 text-[0.6rem] font-semibold px-1.5 py-0.5 rounded mt-0.5 tracking-wide uppercase">
+                  ${categoryEmoji} ${category}
+                </span>
               </div>
             </div>
           `;
         }).join('');
 
-        return `
-          <div class="bg-white p-3 rounded-lg border border-indigo-200 shadow-sm">
-            <!-- Header Bulan (Bisa di-toggle) -->
-            <div onclick="toggleSection('${monthDomId}')" class="flex justify-between items-center mb-3 pb-2 border-b border-dashed border-indigo-200 cursor-pointer select-none">
-              <div class="text-[0.75rem] font-bold text-slate-600">📋 ${monthLabel}</div>
-              <svg id="arrow-${monthDomId}" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transition-transform transform rotate-180 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-              </svg>
-            </div>
-            <!-- Konten Minggu-minggu di Bulan Ini -->
-            <div id="${monthDomId}" class="space-y-2">
-              ${weeksHtml}
-            </div>
-            <div class="mt-3 pt-2 border-t border-slate-900 text-center">
-              <div class="text-[0.8rem] font-bold text-indigo-700">
-                MONTH TOTAL: Rp ${monthGroup.total.toLocaleString('id-ID')}
-              </div>
+      return `
+        <div class="bg-slate-50 p-3 rounded-xl border border-slate-200/60 shadow-sm mb-2">
+          <div onclick="toggleSection('${weekDomId}')" class="text-[0.7rem] font-bold text-slate-600 mb-2 pb-2 border-b border-dashed border-slate-300 flex justify-between items-center cursor-pointer select-none">
+            <span>${weekLabel}</span>
+            <svg id="arrow-${weekDomId}" xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 transition-transform transform rotate-180 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+            </svg>
+          </div>
+          <div id="${weekDomId}" class="space-y-1">
+            ${transactionsHtml}
+            <div class="receipt-total mt-2 pt-2 text-[0.75rem]">
+              <span class="font-semibold">WEEK TOTAL</span>
+              <span class="font-bold">Rp ${weekGroup.total.toLocaleString('id-ID')}</span>
             </div>
           </div>
-        `;
-      }).join('');
-    }
+        </div>
+      `;
+    }).join('');
+
+    return `
+      <div class="bg-white p-4 rounded-2xl border border-indigo-100 shadow-sm mb-4">
+        <div onclick="toggleSection('${monthDomId}')" class="flex justify-between items-center mb-3 pb-2 border-b border-dashed border-indigo-200 cursor-pointer select-none">
+          <div class="text-[0.8rem] font-bold text-indigo-600 uppercase tracking-wider">📋 ${monthLabel}</div>
+          <svg id="arrow-${monthDomId}" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transition-transform transform rotate-180 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+          </svg>
+        </div>
+        <div id="${monthDomId}" class="space-y-2">
+          ${weeksHtml}
+        </div>
+        <div class="mt-3 pt-2 border-t-2 border-slate-800 text-right">
+          <div class="text-[0.8rem] font-black text-slate-900">
+            MONTH TOTAL: Rp ${monthGroup.total.toLocaleString('id-ID')}
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
 
     checkLogin();
   </script>
