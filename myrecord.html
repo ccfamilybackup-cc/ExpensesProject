@@ -88,11 +88,11 @@
     <div class="mt-8">
       <h3 class="text-sm font-bold text-slate-700 mb-4 cursor-pointer flex justify-between items-center" onclick="toggleSection('expenseList')">
         <span>📋 RECENT TRANSACTIONS</span>
-        <svg id="arrow-expenseList" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transition-transform transform rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <svg id="arrow-expenseList" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transition-transform transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
         </svg>
       </h3>
-      <div id="expenseList" class="space-y-3"></div>
+      <div id="expenseList" class="hidden space-y-3"></div>
     </div>
   </div>
 
@@ -350,95 +350,34 @@
 
     function parseTransactionDate(dateStr) {
       if (!dateStr) return new Date();
-      
       const strValue = dateStr.toString().trim();
-      
       if (strValue.includes('/')) {
         const parts = strValue.split('/');
-        if (parts.length === 3) {
-          const day = parseInt(parts[0], 10);
-          const month = parseInt(parts[1], 10) - 1;
-          const year = parseInt(parts[2], 10);
-          const date = new Date(year, month, day);
-          if (!isNaN(date.getTime())) {
-            return date;
-          }
-        }
+        if (parts.length === 3) return new Date(parts[2], parts[1] - 1, parts[0]);
       }
-      
       if (strValue.includes('-')) {
         const parts = strValue.split('-');
-        if (parts.length === 3) {
-          const year = parseInt(parts[0], 10);
-          const month = parseInt(parts[1], 10) - 1;
-          const day = parseInt(parts[2], 10);
-          const date = new Date(year, month, day);
-          if (!isNaN(date.getTime())) {
-            return date;
-          }
-        }
+        if (parts.length === 3) return new Date(parts[0], parts[1] - 1, parts[2]);
       }
-      
       const date = new Date(dateStr);
       return !isNaN(date.getTime()) ? date : new Date();
     }
 
     function groupByMonthWeekAndDay(transactions) {
       const grouped = {};
-      
       transactions.forEach(t => {
         let date = parseTransactionDate(t.date);
-        if (isNaN(date.getTime())) {
-          date = new Date();
-        }
-
         const year = date.getFullYear();
         const month = date.getMonth();
-        const weekOfMonth = getWeekOfMonth(date);
-        const day = date.getDate();
-        const dateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-        
         const monthKey = `${year}-${String(month + 1).padStart(2, '0')}`;
-        const weekKey = `${monthKey}-W${weekOfMonth}`;
         
-        if (!grouped[monthKey]) {
-          grouped[monthKey] = {
-            monthKey,
-            year,
-            month,
-            date,
-            weeks: {},
-            total: 0
-          };
-        }
-        
-        if (!grouped[monthKey].weeks[weekKey]) {
-          grouped[monthKey].weeks[weekKey] = {
-            weekKey,
-            weekOfMonth,
-            date,
-            days: {},
-            total: 0
-          };
-        }
-
-        if (!grouped[monthKey].weeks[weekKey].days[dateKey]) {
-          grouped[monthKey].weeks[weekKey].days[dateKey] = {
-            dateKey,
-            date,
-            transactions: [],
-            total: 0
-          };
-        }
+        if (!grouped[monthKey]) grouped[monthKey] = { monthKey, year, month, date, transactions: [], total: 0 };
         
         const amount = parseFloat(t.jumlah) || 0;
         t.processedDate = date;
-        grouped[monthKey].weeks[weekKey].days[dateKey].transactions.push(t);
-        grouped[monthKey].weeks[weekKey].days[dateKey].total += amount;
-        grouped[monthKey].weeks[weekKey].total += amount;
+        grouped[monthKey].transactions.push(t);
         grouped[monthKey].total += amount;
       });
-      
       return grouped;
     }
 
@@ -448,29 +387,14 @@
         const url = localStorage.getItem(STORAGE_URL) + "?pin=" + localStorage.getItem(STORAGE_PIN);
         const res = await fetch(url);
         const data = await res.json();
-        
-        if (data.error) {
-          console.error('Server error:', data.error);
-          return;
-        }
-        
         renderHistory(data.history || []);
-        if (balanceVisible) {
-          document.getElementById('sisaBudget').innerText = "Rp " + (parseFloat(data.budget) || 0).toLocaleString('id-ID');
-        }
-      } catch (err) { 
-        console.error('Fetch error:', err);
-      }
+        if (balanceVisible) document.getElementById('sisaBudget').innerText = "Rp " + (parseFloat(data.budget) || 0).toLocaleString('id-ID');
+      } catch (err) { console.error('Fetch error:', err); }
     }
 
     document.getElementById("expenseForm").addEventListener("submit", async (e) => {
       e.preventDefault();
-      
-      if (!isSessionValid()) {
-        handleSessionTimeout();
-        return;
-      }
-
+      if (!isSessionValid()) { handleSessionTimeout(); return; }
       const btn = document.getElementById('submitBtn');
       btn.innerText = "Saving...";
       const formData = new URLSearchParams({
@@ -479,28 +403,18 @@
         jumlah: document.getElementById('jumlahDisplay').value.replace(/\./g, ''),
         pin: localStorage.getItem(STORAGE_PIN)
       });
-      
       try {
-        const res = await fetch(localStorage.getItem(STORAGE_URL), { method: "POST", body: formData });
-        const result = await res.json();
-        
+        await fetch(localStorage.getItem(STORAGE_URL), { method: "POST", body: formData });
         btn.innerText = "Save Transaction";
         document.getElementById('expenseForm').reset();
-        
         setTimeout(() => fetchData(), 500);
-      } catch (err) {
-        console.error('Submit error:', err);
-        btn.innerText = "Error! Try again";
-        setTimeout(() => { btn.innerText = "Save Transaction"; }, 2000);
-      }
+      } catch (err) { console.error('Submit error:', err); btn.innerText = "Error!"; }
     });
 
-    // ===== RENDER HISTORY =====
     function renderHistory(transactions) {
       const list = document.getElementById('expenseList');
-      
       if (!transactions || transactions.length === 0) {
-        list.innerHTML = `<p class="text-center text-slate-400 py-6 text-sm">No recent transactions found.</p>`;
+        list.innerHTML = `<p class="text-center text-slate-400 py-6 text-xs">No transactions.</p>`;
         return;
       }
 
@@ -509,103 +423,26 @@
 
       list.innerHTML = sortedMonths.map(monthKey => {
         const monthGroup = grouped[monthKey];
-        const monthLabel = formatMonth(monthGroup.date);
         const monthDomId = `month-${monthKey}`;
         
-        const sortedWeeks = Object.keys(monthGroup.weeks)
-          .sort((a, b) => monthGroup.weeks[b].weekOfMonth - monthGroup.weeks[a].weekOfMonth);
-        
-        const weeksHtml = sortedWeeks.map(weekKey => {
-          const weekGroup = monthGroup.weeks[weekKey];
-          const { startDate, endDate } = getWeekDateRange(weekGroup.date);
-          const weekLabel = `Week ${weekGroup.weekOfMonth} (${formatDateShort(startDate)} - ${formatDateShort(endDate)})`;
-          const weekDomId = `week-${weekKey}`;
-
-          const emojiMap = {
-            'Food': '🍔', 'Transport': '🚗', 'Fuel': '⛽', 'Bills': '💡',
-            'Shopping': '🛒', 'Entertainment': '🎮', 'Health': '💊', 'Others': '📦'
-          };
-
-          const sortedDays = Object.keys(weekGroup.days).sort((a, b) => b.localeCompare(a));
-
-          const daysHtml = sortedDays.map(dateKey => {
-            const dayGroup = weekGroup.days[dateKey];
-            const dayDomId = `day-${dateKey}`;
-            const dayLabel = formatDateFull(dayGroup.date);
-
-            const transactionsHtml = dayGroup.transactions
-              .sort((a, b) => b.processedDate - a.processedDate)
-              .map(t => {
-                const amount = parseFloat(t.jumlah) || 0;
-                let category = t.kategori || 'Others';
-                const categoryEmoji = emojiMap[category] || '📦';
-                
-                return `
-                  <div class="flex justify-between items-center py-3 px-4 border-b border-slate-200 last:border-b-0">
-                    <div class="flex-1 min-w-0">
-                      <div class="font-semibold text-slate-800 text-base">${t.barang}</div>
-                      <span class="inline-block text-sm bg-slate-100 text-slate-600 px-2.5 py-1.5 rounded mt-1.5">
-                        ${categoryEmoji} ${category}
-                      </span>
-                    </div>
-                    <div class="text-right ml-4 flex-shrink-0">
-                      <div class="font-bold text-slate-900 text-base">Rp ${amount.toLocaleString('id-ID')}</div>
-                    </div>
-                  </div>
-                `;
-              }).join('');
-
-            return `
-              <div class="border border-slate-200 rounded-lg overflow-hidden">
-                <div onclick="toggleSection('${dayDomId}')" class="bg-slate-100 px-4 py-3 cursor-pointer flex justify-between items-center hover:bg-slate-150 transition">
-                  <span class="text-base font-semibold text-slate-700">${dayLabel}</span>
-                  <svg id="arrow-${dayDomId}" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transition-transform transform rotate-180 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                  </svg>
-                </div>
-                <div id="${dayDomId}" class="bg-white">
-                  ${transactionsHtml}
-                  <div class="px-4 py-3 bg-slate-50 border-t border-slate-200 flex justify-between items-center">
-                    <span class="font-semibold text-slate-600 text-sm">Day Total</span>
-                    <span class="font-bold text-slate-900 text-base">Rp ${dayGroup.total.toLocaleString('id-ID')}</span>
-                  </div>
-                </div>
-              </div>
-            `;
-          }).join('');
-
-          return `
-            <div class="border border-slate-300 rounded-lg overflow-hidden">
-              <div onclick="toggleSection('${weekDomId}')" class="bg-slate-200 px-4 py-3.5 cursor-pointer flex justify-between items-center hover:bg-slate-250 transition">
-                <span class="font-semibold text-slate-800 text-base">${weekLabel}</span>
-                <svg id="arrow-${weekDomId}" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transition-transform transform rotate-180 text-slate-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                </svg>
-              </div>
-              <div id="${weekDomId}" class="bg-white space-y-3 p-4">
-                ${daysHtml}
-                <div class="px-4 py-3 bg-slate-50 border border-slate-200 rounded flex justify-between items-center">
-                  <span class="font-semibold text-slate-700 text-sm">Week Total</span>
-                  <span class="font-bold text-slate-900 text-base">Rp ${weekGroup.total.toLocaleString('id-ID')}</span>
-                </div>
-              </div>
-            </div>
-          `;
-        }).join('');
-
         return `
-          <div class="border border-slate-400 rounded-lg overflow-hidden">
-            <div onclick="toggleSection('${monthDomId}')" class="bg-indigo-600 text-white px-4 py-4 cursor-pointer flex justify-between items-center hover:bg-indigo-700 transition">
-              <span class="font-bold text-xl">${monthLabel}</span>
-              <svg id="arrow-${monthDomId}" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 transition-transform transform rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-              </svg>
+          <div class="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm">
+            <div onclick="toggleSection('${monthDomId}')" class="bg-slate-50 px-4 py-3 cursor-pointer flex justify-between items-center border-b border-slate-100">
+              <span class="font-bold text-slate-700 text-xs uppercase tracking-wider">${formatMonth(monthGroup.date)}</span>
+              <svg id="arrow-${monthDomId}" xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 transition-transform text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
             </div>
-            <div id="${monthDomId}" class="bg-white space-y-4 p-4">
-              ${weeksHtml}
-              <div class="px-4 py-3 bg-slate-100 border border-slate-300 rounded flex justify-between items-center">
-                <span class="text-slate-800 font-bold text-base">MONTH TOTAL</span>
-                <span class="text-lg text-slate-900 font-bold">Rp ${monthGroup.total.toLocaleString('id-ID')}</span>
+            <div id="${monthDomId}" class="hidden p-2 text-[0.75rem]">
+              ${monthGroup.transactions.sort((a,b) => b.processedDate - a.processedDate).map(t => `
+                <div class="flex justify-between items-center py-2 px-2 border-b border-dashed border-slate-100">
+                  <div class="flex flex-col">
+                    <span class="font-semibold text-slate-800 text-[0.8rem]">${t.barang}</span>
+                    <span class="text-[0.65rem] text-slate-400">${formatDateFull(t.processedDate)}</span>
+                  </div>
+                  <span class="font-bold text-slate-900 tracking-tight">Rp ${parseFloat(t.jumlah).toLocaleString('id-ID')}</span>
+                </div>
+              `).join('')}
+              <div class="px-2 pt-3 mt-1 font-bold text-slate-900 border-t border-slate-200 text-right">
+                TOTAL: Rp ${monthGroup.total.toLocaleString('id-ID')}
               </div>
             </div>
           </div>
