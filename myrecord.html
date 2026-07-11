@@ -14,25 +14,61 @@
     }
     .glass { backdrop-filter: blur(10px); background: rgba(255, 255, 255, 0.7); }
     ::-webkit-scrollbar { display: none; }
-    .week-header {
-      background: linear-gradient(135deg, #e0e7ff 0%, #f0f4ff 100%);
-      border-left: 3px solid #4f46e5;
+    .modal-backdrop {
+      backdrop-filter: blur(5px);
     }
-    .week-total {
-      background: #f8fafc;
-      border-top: 1px solid #e2e8f0;
+    .receipt-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding: 0.375rem 0;
+      border-bottom: 1px dotted #e2e8f0;
+      font-size: 0.8rem;
+      gap: 0.5rem;
+    }
+    .receipt-item:last-child {
+      border-bottom: 2px solid #1e293b;
+    }
+    .receipt-item div:first-child {
+      flex: 1;
+      min-width: 0;
+    }
+    .receipt-item div:last-child {
+      flex-shrink: 0;
+      text-align: right;
+      white-space: nowrap;
+    }
+    .receipt-total {
+      display: flex;
+      justify-content: space-between;
+      padding: 0.5rem 0;
+      font-weight: bold;
+      font-size: 0.85rem;
+      gap: 0.5rem;
     }
   </style>
 </head>
-<body class="min-h-screen p-4 md:p-8 flex flex-col items-center">
+<body class="min-h-screen p-4 md:p-8 flex flex-col items-center bg-gray-50">
 
-  <!-- Setup Modal -->
-  <div id="setupModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-white">
-    <div class="w-full max-w-sm bg-slate-50 p-6 rounded-3xl shadow-xl">
-      <h2 class="text-lg font-bold mb-4">Initial Setup</h2>
-      <input type="text" id="inputUrl" placeholder="Enter Script URL" class="w-full mb-3 px-4 py-3 rounded-xl border border-slate-200 text-sm">
-      <input type="password" id="inputPin" placeholder="Enter Secret PIN" class="w-full mb-4 px-4 py-3 rounded-xl border border-slate-200 text-sm">
-      <button onclick="saveConfig()" class="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold">Save Settings</button>
+  <!-- Login Modal -->
+  <div id="loginModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop">
+    <div class="w-full max-w-sm bg-white p-8 rounded-3xl shadow-2xl">
+      <h2 class="text-2xl font-bold mb-2 text-slate-900">Welcome Back</h2>
+      <p class="text-sm text-slate-500 mb-6">Enter your credentials to access the tracker</p>
+      <div id="loginError" class="hidden mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm"></div>
+      <input type="password" id="loginUrl" placeholder="Script URL" class="w-full mb-3 px-4 py-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+      <input type="password" id="loginPin" placeholder="Secret PIN" class="w-full mb-6 px-4 py-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+      <button onclick="handleLogin()" id="loginBtn" class="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 transition">Login</button>
+    </div>
+  </div>
+
+  <!-- Session Timeout Warning Modal -->
+  <div id="timeoutWarningModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop">
+    <div class="w-full max-w-sm bg-white p-8 rounded-3xl shadow-2xl">
+      <h2 class="text-xl font-bold mb-2 text-amber-900">⏰ Session Expiring Soon</h2>
+      <p class="text-sm text-slate-600 mb-6">Your session will expire in <span id="warningCountdown" class="font-bold text-orange-600">2 minutes</span>. Click below to stay logged in.</p>
+      <button onclick="extendSession()" class="w-full bg-amber-500 text-white py-3 rounded-xl font-bold hover:bg-amber-600 transition mb-2">Stay Logged In</button>
+      <button onclick="handleLogout()" class="w-full bg-slate-200 text-slate-900 py-3 rounded-xl font-bold hover:bg-slate-300 transition">Logout Now</button>
     </div>
   </div>
 
@@ -42,7 +78,9 @@
         <p id="todayDate" class="text-[11px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1"></p>
         <h1 class="text-2xl font-bold text-slate-900">Hi, Bharata 👋</h1>
       </div>
-      <button onclick="resetConfig()" class="text-[10px] text-slate-400 underline">Settings</button>
+      <div class="flex items-center gap-3">
+        <button onclick="handleLogout()" class="text-[10px] text-slate-400 hover:text-red-500 underline">Logout</button>
+      </div>
     </div>
     
     <!-- Allowance Card -->
@@ -51,16 +89,17 @@
         <p class="text-[10px] font-semibold uppercase tracking-widest opacity-80 mb-1">YOUR ALLOWANCE</p>
         <h2 id="sisaBudget" class="text-2xl font-black tracking-tight">*******</h2>
       </div>
-      <button onclick="toggleBalance()" class="h-10 w-10 flex items-center justify-center rounded-xl bg-white/20 hover:bg-white/30 transition">
-        <svg id="eyeIcon" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+      <button onclick="toggleBalance()" class="h-10 w-10 flex items-center justify-center rounded-xl bg-white/20 hover:bg-white/30 transition flex-shrink-0" title="Toggle balance visibility">
+        <svg id="eyeIcon" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+          <circle cx="12" cy="12" r="3"></circle>
         </svg>
       </button>
     </div>
     
-    <form id="expenseForm" class="space-y-4">
-      <input type="text" id="barang" placeholder="What do you buy?" required class="w-full px-5 py-3 rounded-2xl bg-white border border-slate-200 outline-none focus:ring-2 focus:ring-indigo-500 text-sm">
-      <select id="kategori" class="w-full px-5 py-3 rounded-2xl bg-white border border-slate-200 outline-none text-sm text-slate-600 appearance-none">
+    <form id="expenseForm" class="space-y-4 bg-white p-6 rounded-2xl shadow">
+      <input type="text" id="barang" placeholder="What do you buy?" required class="w-full px-5 py-3 rounded-2xl bg-slate-50 border border-slate-200 outline-none focus:ring-2 focus:ring-indigo-500 text-sm">
+      <select id="kategori" class="w-full px-5 py-3 rounded-2xl bg-slate-50 border border-slate-200 outline-none text-sm text-slate-600 appearance-none">
         <option value="Food">🍔 Food & Drink</option>
         <option value="Transport">🚗 Transport</option>
         <option value="Fuel">⛽ Fuel</option>
@@ -70,13 +109,13 @@
         <option value="Health">💊 Health</option>
         <option value="Others">📦 Others</option>
       </select>
-      <input type="text" id="jumlahDisplay" placeholder="Amount (Rp)" required class="w-full px-5 py-3 rounded-2xl bg-white border border-slate-200 outline-none focus:ring-2 focus:ring-indigo-500 text-sm">
+      <input type="text" id="jumlahDisplay" placeholder="Amount (Rp)" required class="w-full px-5 py-3 rounded-2xl bg-slate-50 border border-slate-200 outline-none focus:ring-2 focus:ring-indigo-500 text-sm">
       <button type="submit" id="submitBtn" class="w-full bg-slate-900 text-white font-bold py-3 rounded-2xl shadow-lg hover:bg-slate-800 transition">Save Transaction</button>
     </form>
 
     <div class="mt-8">
-      <h3 class="text-xs font-bold text-slate-500 mb-4 cursor-pointer flex justify-between items-center px-2" onclick="toggleVisibility('expenseList')">
-        <span class="uppercase tracking-widest">Recent Transactions</span>
+      <h3 class="text-xs font-bold text-slate-500 mb-3 cursor-pointer flex justify-between items-center px-2" onclick="toggleVisibility('expenseList')">
+        <span class="uppercase tracking-widest">📋 Recent Transactions</span>
         <svg id="historyIcon" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
         </svg>
@@ -86,25 +125,174 @@
   </div>
 
   <script>
+    // ===== SESSION & LOGIN MANAGEMENT =====
     const STORAGE_URL = 'bw_script_url';
     const STORAGE_PIN = 'bw_script_pin';
+    const STORAGE_LOGIN_TIME = 'bw_login_time';
+    const SESSION_DURATION = 10 * 60 * 1000; // 10 minutes
+    const WARNING_TIME = 2 * 60 * 1000; // Show warning 2 minutes before timeout
 
-    function saveConfig() {
-      localStorage.setItem(STORAGE_URL, document.getElementById('inputUrl').value);
-      localStorage.setItem(STORAGE_PIN, document.getElementById('inputPin').value);
-      location.reload();
+    let sessionTimer = null;
+    let warningTimer = null;
+    let isLoggedIn = false;
+    let balanceVisible = false;
+
+    function getTimeRemaining() {
+      const loginTime = parseInt(localStorage.getItem(STORAGE_LOGIN_TIME)) || 0;
+      const now = Date.now();
+      const timeRemaining = SESSION_DURATION - (now - loginTime);
+      return Math.max(0, timeRemaining);
     }
 
-    function resetConfig() {
-      localStorage.clear();
-      location.reload();
+    function isSessionValid() {
+      const loginTime = parseInt(localStorage.getItem(STORAGE_LOGIN_TIME)) || 0;
+      if (!loginTime) return false;
+      const timeRemaining = getTimeRemaining();
+      return timeRemaining > 0;
     }
 
-    function checkConfig() {
-      if (!localStorage.getItem(STORAGE_URL)) {
-        document.getElementById('setupModal').classList.remove('hidden');
+    function updateSessionTimer() {
+      const timeRemaining = getTimeRemaining();
+      if (timeRemaining <= 0) {
+        handleSessionTimeout();
+        return;
       }
     }
+
+    function startSessionTimer() {
+      if (sessionTimer) clearInterval(sessionTimer);
+      sessionTimer = setInterval(() => {
+        updateSessionTimer();
+      }, 1000);
+      
+      if (warningTimer) clearTimeout(warningTimer);
+      const timeRemaining = getTimeRemaining();
+      const timeUntilWarning = timeRemaining - WARNING_TIME;
+      
+      if (timeUntilWarning > 0) {
+        warningTimer = setTimeout(() => {
+          showTimeoutWarning();
+        }, timeUntilWarning);
+      } else if (timeRemaining > 0) {
+        showTimeoutWarning();
+      }
+    }
+
+    function showTimeoutWarning() {
+      document.getElementById('timeoutWarningModal').classList.remove('hidden');
+      let countdownValue = 120;
+      const countdownEl = document.getElementById('warningCountdown');
+      
+      const warningInterval = setInterval(() => {
+        countdownValue--;
+        if (countdownValue <= 0) {
+          clearInterval(warningInterval);
+          handleSessionTimeout();
+        } else {
+          const mins = Math.floor(countdownValue / 60);
+          const secs = countdownValue % 60;
+          countdownEl.textContent = `${mins}:${String(secs).padStart(2, '0')}`;
+        }
+      }, 1000);
+    }
+
+    function extendSession() {
+      localStorage.setItem(STORAGE_LOGIN_TIME, Date.now().toString());
+      document.getElementById('timeoutWarningModal').classList.add('hidden');
+      startSessionTimer();
+    }
+
+    function handleSessionTimeout() {
+      showLoginModal('Session expired! Please login again.');
+      clearAllTimers();
+      handleLogout();
+    }
+
+    function clearAllTimers() {
+      if (sessionTimer) clearInterval(sessionTimer);
+      if (warningTimer) clearTimeout(warningTimer);
+    }
+
+    async function handleLogin() {
+      const url = document.getElementById('loginUrl').value.trim();
+      const pin = document.getElementById('loginPin').value.trim();
+      const loginBtn = document.getElementById('loginBtn');
+      const errorEl = document.getElementById('loginError');
+
+      if (!url || !pin) {
+        errorEl.textContent = 'Please enter both URL and PIN';
+        errorEl.classList.remove('hidden');
+        return;
+      }
+
+      loginBtn.disabled = true;
+      loginBtn.textContent = 'Verifying...';
+      errorEl.classList.add('hidden');
+
+      try {
+        const res = await fetch(url + "?pin=" + pin);
+        if (!res.ok) {
+          throw new Error('Invalid credentials or URL');
+        }
+        const data = await res.json();
+        
+        localStorage.setItem(STORAGE_URL, url);
+        localStorage.setItem(STORAGE_PIN, pin);
+        localStorage.setItem(STORAGE_LOGIN_TIME, Date.now().toString());
+        
+        isLoggedIn = true;
+        balanceVisible = false;
+        document.getElementById('loginModal').classList.add('hidden');
+        startSessionTimer();
+        fetchData();
+      } catch (err) {
+        errorEl.textContent = 'Login failed: ' + err.message;
+        errorEl.classList.remove('hidden');
+        console.error(err);
+      } finally {
+        loginBtn.disabled = false;
+        loginBtn.textContent = 'Login';
+      }
+    }
+
+    function handleLogout() {
+      clearAllTimers();
+      localStorage.removeItem(STORAGE_LOGIN_TIME);
+      isLoggedIn = false;
+      balanceVisible = false;
+      document.getElementById('timeoutWarningModal').classList.add('hidden');
+      showLoginModal();
+    }
+
+    function showLoginModal(message = '') {
+      const modal = document.getElementById('loginModal');
+      const errorEl = document.getElementById('loginError');
+      
+      document.getElementById('loginUrl').value = '';
+      document.getElementById('loginPin').value = '';
+      
+      if (message) {
+        errorEl.textContent = message;
+        errorEl.classList.remove('hidden');
+      } else {
+        errorEl.classList.add('hidden');
+      }
+      
+      modal.classList.remove('hidden');
+    }
+
+    function checkLogin() {
+      if (!localStorage.getItem(STORAGE_URL) || !isSessionValid()) {
+        isLoggedIn = false;
+        balanceVisible = false;
+        showLoginModal();
+      } else {
+        isLoggedIn = true;
+        startSessionTimer();
+      }
+    }
+
+    // ===== TRACKER FUNCTIONALITY =====
 
     function toggleVisibility(elementId) {
       const element = document.getElementById(elementId);
@@ -116,13 +304,15 @@
     function toggleBalance() {
       const budgetEl = document.getElementById('sisaBudget');
       const eyeIcon = document.getElementById('eyeIcon');
-      if (budgetEl.innerText.includes('*')) {
-        // Already hidden, show it
-        fetchData();
-        eyeIcon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />';
-      } else {
+      
+      if (balanceVisible) {
         budgetEl.innerText = '*******';
-        eyeIcon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />';
+        eyeIcon.innerHTML = '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle>';
+        balanceVisible = false;
+      } else {
+        fetchData();
+        eyeIcon.innerHTML = '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line>';
+        balanceVisible = true;
       }
     }
 
@@ -142,13 +332,13 @@
 
     document.getElementById('todayDate').innerText = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }).toUpperCase();
     
-    // Helper function to get week number
-    function getWeekNumber(date) {
-      const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-      const dayNum = d.getUTCDay() || 7;
-      d.setUTCDate(d.getUTCDate() + 4 - dayNum);
-      const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-      return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+    // Helper function to get week number within a month
+    function getWeekOfMonth(date) {
+      const d = new Date(date);
+      const firstDay = new Date(d.getFullYear(), d.getMonth(), 1);
+      const firstDayOfWeek = firstDay.getDay();
+      const dateOfMonth = d.getDate();
+      return Math.ceil((dateOfMonth + firstDayOfWeek) / 7);
     }
 
     // Helper function to get week start and end dates
@@ -167,20 +357,43 @@
       return new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     }
 
-    // Group transactions by week
-    function groupByWeek(transactions) {
+    function formatDateFull(date) {
+      return new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    }
+
+    // Format month for display
+    function formatMonth(date) {
+      return new Date(date).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    }
+
+    // Group transactions by Month → Week
+    function groupByMonthAndWeek(transactions) {
       const grouped = {};
       
       transactions.forEach(t => {
         const date = new Date(t.date || new Date());
-        const week = getWeekNumber(date);
         const year = date.getFullYear();
-        const key = `${year}-W${String(week).padStart(2, '0')}`;
+        const month = date.getMonth();
+        const weekOfMonth = getWeekOfMonth(date);
         
-        if (!grouped[key]) {
-          grouped[key] = {
-            week,
+        const monthKey = `${year}-${String(month + 1).padStart(2, '0')}`;
+        const weekKey = `${monthKey}-W${weekOfMonth}`;
+        
+        if (!grouped[monthKey]) {
+          grouped[monthKey] = {
+            monthKey,
             year,
+            month,
+            date,
+            weeks: {},
+            total: 0
+          };
+        }
+        
+        if (!grouped[monthKey].weeks[weekKey]) {
+          grouped[monthKey].weeks[weekKey] = {
+            weekKey,
+            weekOfMonth,
             date,
             transactions: [],
             total: 0
@@ -188,8 +401,9 @@
         }
         
         const amount = parseFloat(t.jumlah) || 0;
-        grouped[key].transactions.push(t);
-        grouped[key].total += amount;
+        grouped[monthKey].weeks[weekKey].transactions.push(t);
+        grouped[monthKey].weeks[weekKey].total += amount;
+        grouped[monthKey].total += amount;
       });
       
       return grouped;
@@ -201,12 +415,20 @@
         const res = await fetch(localStorage.getItem(STORAGE_URL) + "?pin=" + localStorage.getItem(STORAGE_PIN));
         const data = await res.json();
         renderHistory(data.history || []);
-        document.getElementById('sisaBudget').innerText = "Rp " + (parseFloat(data.budget) || 0).toLocaleString('id-ID');
+        if (balanceVisible) {
+          document.getElementById('sisaBudget').innerText = "Rp " + (parseFloat(data.budget) || 0).toLocaleString('id-ID');
+        }
       } catch (err) { console.error(err); }
     }
 
     document.getElementById("expenseForm").addEventListener("submit", async (e) => {
       e.preventDefault();
+      
+      if (!isSessionValid()) {
+        handleSessionTimeout();
+        return;
+      }
+
       const btn = document.getElementById('submitBtn');
       btn.innerText = "Saving...";
       const formData = new URLSearchParams({
@@ -215,10 +437,17 @@
         jumlah: document.getElementById('jumlahDisplay').value.replace(/\./g, ''),
         pin: localStorage.getItem(STORAGE_PIN)
       });
-      await fetch(localStorage.getItem(STORAGE_URL), { method: "POST", body: formData });
-      btn.innerText = "Save Transaction";
-      document.getElementById('expenseForm').reset();
-      fetchData();
+      
+      try {
+        await fetch(localStorage.getItem(STORAGE_URL), { method: "POST", body: formData });
+        btn.innerText = "Save Transaction";
+        document.getElementById('expenseForm').reset();
+        fetchData();
+      } catch (err) {
+        console.error(err);
+        btn.innerText = "Error! Try again";
+        setTimeout(() => { btn.innerText = "Save Transaction"; }, 2000);
+      }
     });
 
     function renderHistory(transactions) {
@@ -229,52 +458,78 @@
         return;
       }
 
-      // Group transactions by week
-      const grouped = groupByWeek(transactions);
+      const grouped = groupByMonthAndWeek(transactions);
       
-      // Sort weeks in descending order (newest first)
-      const sortedWeeks = Object.keys(grouped).sort((a, b) => {
-        const [yearA, weekA] = a.split('-W').map(Number);
-        const [yearB, weekB] = b.split('-W').map(Number);
-        if (yearA !== yearB) return yearB - yearA;
-        return weekB - weekA;
+      const sortedMonths = Object.keys(grouped).sort((a, b) => {
+        return b.localeCompare(a);
       });
 
-      // Render each week group
-      list.innerHTML = sortedWeeks.map(weekKey => {
-        const group = grouped[weekKey];
-        const { startDate, endDate } = getWeekDateRange(group.date);
-        const weekLabel = `Week ${group.week} (${formatDateShort(startDate)} - ${formatDateShort(endDate)})`;
+      list.innerHTML = sortedMonths.map(monthKey => {
+        const monthGroup = grouped[monthKey];
+        const monthLabel = formatMonth(monthGroup.date);
+        
+        const sortedWeeks = Object.keys(monthGroup.weeks)
+          .sort((a, b) => monthGroup.weeks[b].weekOfMonth - monthGroup.weeks[a].weekOfMonth);
+        
+        const weeksHtml = sortedWeeks.map(weekKey => {
+          const weekGroup = monthGroup.weeks[weekKey];
+          const { startDate, endDate } = getWeekDateRange(weekGroup.date);
+          const weekLabel = `Week ${weekGroup.weekOfMonth} • ${formatDateShort(startDate)} - ${formatDateShort(endDate)}`;
 
-        const transactionsHtml = group.transactions.map(t => `
-          <div class="bg-white px-3 py-2 rounded-xl shadow-sm border border-slate-100 flex justify-between items-center text-xs text-slate-600">
-            <div class="flex-1">
-              <span class="font-medium text-slate-900">${t.barang}</span>
-              <span class="text-slate-400 ml-2">${t.kategori || 'Others'}</span>
+          const transactionsHtml = weekGroup.transactions
+            .sort((a, b) => new Date(b.date || new Date()) - new Date(a.date || new Date()))
+            .map(t => {
+              const amount = parseFloat(t.jumlah) || 0;
+              const category = t.kategori || 'Others';
+              const tDate = new Date(t.date || new Date());
+              const dateStr = formatDateFull(tDate);
+              
+              return `
+                <div class="receipt-item">
+                  <div>
+                    <div class="font-medium text-slate-800 text-[0.8rem]">${t.barang}</div>
+                    <div class="text-slate-500 text-[0.7rem] leading-tight">${category} • ${dateStr}</div>
+                  </div>
+                  <div class="font-semibold text-slate-900 text-[0.8rem]">Rp ${amount.toLocaleString('id-ID')}</div>
+                </div>
+              `;
+            }).join('');
+
+          return `
+            <div class="bg-white p-3 rounded-lg border border-slate-200 shadow-sm">
+              <div class="text-[0.7rem] font-bold text-slate-600 mb-2 pb-2 border-b border-dashed border-slate-300">
+                ${weekLabel}
+              </div>
+              <div>
+                ${transactionsHtml}
+                <div class="receipt-total mt-2 pt-2 text-[0.75rem]">
+                  <span class="font-semibold">WEEK TOTAL</span>
+                  <span class="font-bold">Rp ${weekGroup.total.toLocaleString('id-ID')}</span>
+                </div>
+              </div>
             </div>
-            <span class="font-semibold text-slate-900">Rp ${(parseFloat(t.jumlah) || 0).toLocaleString('id-ID')}</span>
-          </div>
-        `).join('');
+          `;
+        }).join('');
 
         return `
-          <div class="border border-slate-200 rounded-2xl overflow-hidden">
-            <div class="week-header px-4 py-3">
-              <h4 class="font-bold text-sm text-indigo-900">${weekLabel}</h4>
+          <div class="bg-white p-3 rounded-lg border border-indigo-300 shadow-sm">
+            <div class="text-center mb-3 pb-2 border-b border-dashed border-indigo-200">
+              <div class="text-[0.75rem] font-bold text-slate-600">📋 ${monthLabel}</div>
             </div>
-            <div class="space-y-2 p-3">
-              ${transactionsHtml}
+            <div class="space-y-2">
+              ${weeksHtml}
             </div>
-            <div class="week-total px-4 py-3 flex justify-between items-center">
-              <span class="text-xs font-semibold text-slate-600">WEEK TOTAL</span>
-              <span class="font-bold text-sm text-indigo-600">Rp ${group.total.toLocaleString('id-ID')}</span>
+            <div class="mt-3 pt-2 border-t border-slate-900 text-center">
+              <div class="text-[0.8rem] font-bold text-indigo-700">
+                MONTH TOTAL: Rp ${monthGroup.total.toLocaleString('id-ID')}
+              </div>
             </div>
           </div>
         `;
       }).join('');
     }
 
-    checkConfig();
-    fetchData();
+    checkLogin();
   </script>
 </body>
 </html>
