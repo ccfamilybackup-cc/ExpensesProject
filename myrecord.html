@@ -237,6 +237,12 @@
         }
         const data = await res.json();
         
+        if (data.error) {
+          throw new Error(data.error);
+        }
+        
+        console.log('Login successful. Data received:', data);
+        
         localStorage.setItem(STORAGE_URL, url);
         localStorage.setItem(STORAGE_PIN, pin);
         localStorage.setItem(STORAGE_LOGIN_TIME, Date.now().toString());
@@ -249,7 +255,7 @@
       } catch (err) {
         errorEl.textContent = 'Login failed: ' + err.message;
         errorEl.classList.remove('hidden');
-        console.error(err);
+        console.error('Login error:', err);
       } finally {
         loginBtn.disabled = false;
         loginBtn.textContent = 'Login';
@@ -290,6 +296,7 @@
       } else {
         isLoggedIn = true;
         startSessionTimer();
+        fetchData();
       }
     }
 
@@ -378,13 +385,43 @@
       return new Date(date).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
     }
 
-    // Parse transaction date with smart detection (DD/MM/YYYY or YYYY-MM-DD)
+    // Parse transaction date - FIXED untuk DD/MM/YYYY format dari Apps Script
     function parseTransactionDate(dateStr) {
-      if (dateStr && typeof dateStr === 'string' && dateStr.includes('/')) {
-        const parts = dateStr.split('/');
-        return new Date(parts[2], parts[1] - 1, parts[0]);
+      if (!dateStr) return new Date();
+      
+      const strValue = dateStr.toString().trim();
+      
+      // Format: DD/MM/YYYY
+      if (strValue.includes('/')) {
+        const parts = strValue.split('/');
+        if (parts.length === 3) {
+          const day = parseInt(parts[0], 10);
+          const month = parseInt(parts[1], 10) - 1;
+          const year = parseInt(parts[2], 10);
+          const date = new Date(year, month, day);
+          if (!isNaN(date.getTime())) {
+            return date;
+          }
+        }
       }
-      return dateStr ? new Date(dateStr) : new Date();
+      
+      // Format: YYYY-MM-DD
+      if (strValue.includes('-')) {
+        const parts = strValue.split('-');
+        if (parts.length === 3) {
+          const year = parseInt(parts[0], 10);
+          const month = parseInt(parts[1], 10) - 1;
+          const day = parseInt(parts[2], 10);
+          const date = new Date(year, month, day);
+          if (!isNaN(date.getTime())) {
+            return date;
+          }
+        }
+      }
+      
+      // Fallback: coba parse sebagai Date standar
+      const date = new Date(dateStr);
+      return !isNaN(date.getTime()) ? date : new Date();
     }
 
     // Group transactions by Month → Week → Day
@@ -450,13 +487,26 @@
     async function fetchData() {
       if (!localStorage.getItem(STORAGE_URL)) return;
       try {
-        const res = await fetch(localStorage.getItem(STORAGE_URL) + "?pin=" + localStorage.getItem(STORAGE_PIN));
+        const url = localStorage.getItem(STORAGE_URL) + "?pin=" + localStorage.getItem(STORAGE_PIN);
+        console.log('Fetching from:', url);
+        
+        const res = await fetch(url);
         const data = await res.json();
+        
+        console.log('Data received from server:', data);
+        
+        if (data.error) {
+          console.error('Server error:', data.error);
+          return;
+        }
+        
         renderHistory(data.history || []);
         if (balanceVisible) {
           document.getElementById('sisaBudget').innerText = "Rp " + (parseFloat(data.budget) || 0).toLocaleString('id-ID');
         }
-      } catch (err) { console.error(err); }
+      } catch (err) { 
+        console.error('Fetch error:', err);
+      }
     }
 
     document.getElementById("expenseForm").addEventListener("submit", async (e) => {
@@ -477,12 +527,18 @@
       });
       
       try {
-        await fetch(localStorage.getItem(STORAGE_URL), { method: "POST", body: formData });
+        const res = await fetch(localStorage.getItem(STORAGE_URL), { method: "POST", body: formData });
+        const result = await res.json();
+        
+        console.log('Submit result:', result);
+        
         btn.innerText = "Save Transaction";
         document.getElementById('expenseForm').reset();
-        fetchData();
+        
+        // Tunggu sebentar sebelum fetch data baru
+        setTimeout(() => fetchData(), 500);
       } catch (err) {
-        console.error(err);
+        console.error('Submit error:', err);
         btn.innerText = "Error! Try again";
         setTimeout(() => { btn.innerText = "Save Transaction"; }, 2000);
       }
@@ -496,6 +552,8 @@
         list.innerHTML = `<p class="text-center text-slate-400 py-6 text-sm">No recent transactions found.</p>`;
         return;
       }
+
+      console.log('Rendering ' + transactions.length + ' transactions');
 
       const grouped = groupByMonthWeekAndDay(transactions);
       
