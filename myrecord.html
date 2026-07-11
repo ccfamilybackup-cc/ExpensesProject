@@ -318,28 +318,6 @@
 
     document.getElementById('todayDate').innerText = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }).toUpperCase();
     
-    function getWeekOfMonth(date) {
-      const d = new Date(date);
-      const firstDay = new Date(d.getFullYear(), d.getMonth(), 1);
-      const firstDayOfWeek = firstDay.getDay();
-      const dateOfMonth = d.getDate();
-      return Math.ceil((dateOfMonth + firstDayOfWeek) / 7);
-    }
-
-    function getWeekDateRange(date) {
-      const d = new Date(date);
-      const day = d.getDay();
-      const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-      const startDate = new Date(d.setDate(diff));
-      const endDate = new Date(startDate);
-      endDate.setDate(endDate.getDate() + 6);
-      return { startDate, endDate };
-    }
-
-    function formatDateShort(date) {
-      return new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    }
-
     function formatDateFull(date) {
       return new Date(date).toLocaleDateString('id-ID', { weekday: 'short', month: 'short', day: 'numeric' });
     }
@@ -413,6 +391,8 @@
 
     function renderHistory(transactions) {
       const list = document.getElementById('expenseList');
+      const emojiMap = { 'Food': '🍔', 'Transport': '🚗', 'Fuel': '⛽', 'Bills': '💡', 'Shopping': '🛒', 'Entertainment': '🎮', 'Health': '💊', 'Others': '📦' };
+      
       if (!transactions || transactions.length === 0) {
         list.innerHTML = `<p class="text-center text-slate-400 py-6 text-xs">No transactions.</p>`;
         return;
@@ -432,15 +412,17 @@
               <svg id="arrow-${monthDomId}" xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 transition-transform text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
             </div>
             <div id="${monthDomId}" class="hidden p-2 text-[0.75rem]">
-              ${monthGroup.transactions.sort((a,b) => b.processedDate - a.processedDate).map(t => `
+              ${monthGroup.transactions.sort((a,b) => b.processedDate - a.processedDate).map(t => {
+                const cat = t.kategori || 'Others';
+                return `
                 <div class="flex justify-between items-center py-2 px-2 border-b border-dashed border-slate-100">
                   <div class="flex flex-col">
                     <span class="font-semibold text-slate-800 text-[0.8rem]">${t.barang}</span>
-                    <span class="text-[0.65rem] text-slate-400">${formatDateFull(t.processedDate)}</span>
+                    <span class="text-[0.65rem] text-slate-400">${formatDateFull(t.processedDate)} • ${emojiMap[cat] || '📦'} ${cat}</span>
                   </div>
                   <span class="font-bold text-slate-900 tracking-tight">Rp ${parseFloat(t.jumlah).toLocaleString('id-ID')}</span>
                 </div>
-              `).join('')}
+              `}).join('')}
               <div class="px-2 pt-3 mt-1 font-bold text-slate-900 border-t border-slate-200 text-right">
                 TOTAL: Rp ${monthGroup.total.toLocaleString('id-ID')}
               </div>
