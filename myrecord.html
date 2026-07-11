@@ -113,15 +113,441 @@
       <button type="submit" id="submitBtn" class="w-full bg-slate-900 text-white font-bold py-3 rounded-2xl shadow-lg hover:bg-slate-800 transition">Save Transaction</button>
     </form>
 
+    <<!-- Bagian Recent Transactions -->
     <div class="mt-8">
-      <h3 class="text-xs font-bold text-slate-500 mb-3 cursor-pointer flex justify-between items-center px-2" onclick="toggleVisibility('expenseList')">
+      <h3 class="text-xs font-bold text-slate-500 mb-3 cursor-pointer flex justify-between items-center px-2" onclick="toggleSection('expenseList')">
         <span class="uppercase tracking-widest">📋 Recent Transactions</span>
-        <svg id="historyIcon" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <svg id="arrow-expenseList" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transition-transform transform rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
         </svg>
       </h3>
-      <div id="expenseList" class="space-y-3 hidden"></div>
+      <!-- Hapus class hidden di sini agar container utama siap menampung data -->
+      <div id="expenseList" class="space-y-4"></div>
     </div>
+  </div>
+
+  <script>
+    // ===== SESSION & LOGIN MANAGEMENT =====
+    const STORAGE_URL = 'bw_script_url';
+    const STORAGE_PIN = 'bw_script_pin';
+    const STORAGE_LOGIN_TIME = 'bw_login_time';
+    const SESSION_DURATION = 10 * 60 * 1000; // 10 minutes
+    const WARNING_TIME = 2 * 60 * 1000; // Show warning 2 minutes before timeout
+
+    let sessionTimer = null;
+    let warningTimer = null;
+    let isLoggedIn = false;
+    let balanceVisible = false;
+
+    function getTimeRemaining() {
+      const loginTime = parseInt(localStorage.getItem(STORAGE_LOGIN_TIME)) || 0;
+      const now = Date.now();
+      const timeRemaining = SESSION_DURATION - (now - loginTime);
+      return Math.max(0, timeRemaining);
+    }
+
+    function isSessionValid() {
+      const loginTime = parseInt(localStorage.getItem(STORAGE_LOGIN_TIME)) || 0;
+      if (!loginTime) return false;
+      const timeRemaining = getTimeRemaining();
+      return timeRemaining > 0;
+    }
+
+    function updateSessionTimer() {
+      const timeRemaining = getTimeRemaining();
+      if (timeRemaining <= 0) {
+        handleSessionTimeout();
+        return;
+      }
+    }
+
+    function startSessionTimer() {
+      if (sessionTimer) clearInterval(sessionTimer);
+      sessionTimer = setInterval(() => {
+        updateSessionTimer();
+      }, 1000);
+      
+      if (warningTimer) clearTimeout(warningTimer);
+      const timeRemaining = getTimeRemaining();
+      const timeUntilWarning = timeRemaining - WARNING_TIME;
+      
+      if (timeUntilWarning > 0) {
+        warningTimer = setTimeout(() => {
+          showTimeoutWarning();
+        }, timeUntilWarning);
+      } else if (timeRemaining > 0) {
+        showTimeoutWarning();
+      }
+    }
+
+    function showTimeoutWarning() {
+      document.getElementById('timeoutWarningModal').classList.remove('hidden');
+      let countdownValue = 120;
+      const countdownEl = document.getElementById('warningCountdown');
+      
+      const warningInterval = setInterval(() => {
+        countdownValue--;
+        if (countdownValue <= 0) {
+          clearInterval(warningInterval);
+          handleSessionTimeout();
+        } else {
+          const mins = Math.floor(countdownValue / 60);
+          const secs = countdownValue % 60;
+          countdownEl.textContent = `${mins}:${String(secs).padStart(2, '0')}`;
+        }
+      }, 1000);
+    }
+
+    function extendSession() {
+      localStorage.setItem(STORAGE_LOGIN_TIME, Date.now().toString());
+      document.getElementById('timeoutWarningModal').classList.add('hidden');
+      startSessionTimer();
+    }
+
+    function handleSessionTimeout() {
+      showLoginModal('Session expired! Please login again.');
+      clearAllTimers();
+      handleLogout();
+    }
+
+    function clearAllTimers() {
+      if (sessionTimer) clearInterval(sessionTimer);
+      if (warningTimer) clearTimeout(warningTimer);
+    }
+
+    async function handleLogin() {
+      const url = document.getElementById('loginUrl').value.trim();
+      const pin = document.getElementById('loginPin').value.trim();
+      const loginBtn = document.getElementById('loginBtn');
+      const errorEl = document.getElementById('loginError');
+
+      if (!url || !pin) {
+        errorEl.textContent = 'Please enter both URL and PIN';
+        errorEl.classList.remove('hidden');
+        return;
+      }
+
+      loginBtn.disabled = true;
+      loginBtn.textContent = 'Verifying...';
+      errorEl.classList.add('hidden');
+
+      try {
+        const res = await fetch(url + "?pin=" + pin);
+        if (!res.ok) {
+          throw new Error('Invalid credentials or URL');
+        }
+        const data = await res.json();
+        
+        localStorage.setItem(STORAGE_URL, url);
+        localStorage.setItem(STORAGE_PIN, pin);
+        localStorage.setItem(STORAGE_LOGIN_TIME, Date.now().toString());
+        
+        isLoggedIn = true;
+        balanceVisible = false;
+        document.getElementById('loginModal').classList.add('hidden');
+        startSessionTimer();
+        fetchData();
+      } catch (err) {
+        errorEl.textContent = 'Login failed: ' + err.message;
+        errorEl.classList.remove('hidden');
+        console.error(err);
+      } finally {
+        loginBtn.disabled = false;
+        loginBtn.textContent = 'Login';
+      }
+    }
+
+    function handleLogout() {
+      clearAllTimers();
+      localStorage.removeItem(STORAGE_LOGIN_TIME);
+      isLoggedIn = false;
+      balanceVisible = false;
+      document.getElementById('timeoutWarningModal').classList.add('hidden');
+      showLoginModal();
+    }
+
+    function showLoginModal(message = '') {
+      const modal = document.getElementById('loginModal');
+      const errorEl = document.getElementById('loginError');
+      
+      document.getElementById('loginUrl').value = '';
+      document.getElementById('loginPin').value = '';
+      
+      if (message) {
+        errorEl.textContent = message;
+        errorEl.classList.remove('hidden');
+      } else {
+        errorEl.classList.add('hidden');
+      }
+      
+      modal.classList.remove('hidden');
+    }
+
+    function checkLogin() {
+      if (!localStorage.getItem(STORAGE_URL) || !isSessionValid()) {
+        isLoggedIn = false;
+        balanceVisible = false;
+        showLoginModal();
+      } else {
+        isLoggedIn = true;
+        startSessionTimer();
+      }
+    }
+
+    // ===== TRACKER FUNCTIONALITY =====
+
+    // Fungsi Toggle Dinamis Baru untuk Bulan, Minggu, atau List Utama
+    function toggleSection(elementId) {
+      const element = document.getElementById(elementId);
+      if (!element) return;
+      
+      element.classList.toggle('hidden');
+      
+      const icon = document.getElementById('arrow-' + elementId);
+      if (icon) {
+        if (element.classList.contains('hidden')) {
+          icon.classList.remove('rotate-180');
+        } else {
+          icon.classList.add('rotate-180');
+        }
+      }
+    }
+
+    function toggleBalance() {
+      const budgetEl = document.getElementById('sisaBudget');
+      const eyeIcon = document.getElementById('eyeIcon');
+      
+      if (balanceVisible) {
+        budgetEl.innerText = '*******';
+        eyeIcon.innerHTML = '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle>';
+        balanceVisible = false;
+      } else {
+        fetchData();
+        eyeIcon.innerHTML = '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line>';
+        balanceVisible = true;
+      }
+    }
+
+    const amountInput = document.getElementById('jumlahDisplay');
+    amountInput.addEventListener('input', function(e) {
+      let value = this.value.replace(/[^,\d]/g, '').toString();
+      let split = value.split(',');
+      let sisa = split[0].length % 3;
+      let rupiah = split[0].substr(0, sisa);
+      let ribuan = split[0].substr(sisa).match(/\d{3}/gi);
+      if (ribuan) {
+        let separator = sisa ? '.' : '';
+        rupiah += separator + ribuan.join('.');
+      }
+      this.value = split[1] != undefined ? rupiah + ',' + split[1] : rupiah;
+    });
+
+    document.getElementById('todayDate').innerText = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }).toUpperCase();
+    
+    function getWeekOfMonth(date) {
+      const d = new Date(date);
+      const firstDay = new Date(d.getFullYear(), d.getMonth(), 1);
+      const firstDayOfWeek = firstDay.getDay();
+      const dateOfMonth = d.getDate();
+      return Math.ceil((dateOfMonth + firstDayOfWeek) / 7);
+    }
+
+    function getWeekDateRange(date) {
+      const d = new Date(date);
+      const day = d.getDay();
+      const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+      const startDate = new Date(d.setDate(diff));
+      const endDate = new Date(startDate);
+      endDate.setDate(endDate.getDate() + 6);
+      return { startDate, endDate };
+    }
+
+    function formatDateShort(date) {
+      return new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    }
+
+    function formatDateFull(date) {
+      return new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    }
+
+    function formatMonth(date) {
+      return new Date(date).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    }
+
+    function groupByMonthAndWeek(transactions) {
+      const grouped = {};
+      
+      transactions.forEach(t => {
+        const date = new Date(t.date || new Date());
+        const year = date.getFullYear();
+        const month = date.getMonth();
+        const weekOfMonth = getWeekOfMonth(date);
+        
+        const monthKey = `${year}-${String(month + 1).padStart(2, '0')}`;
+        const weekKey = `${monthKey}-W${weekOfMonth}`;
+        
+        if (!grouped[monthKey]) {
+          grouped[monthKey] = {
+            monthKey,
+            year,
+            month,
+            date,
+            weeks: {},
+            total: 0
+          };
+        }
+        
+        if (!grouped[monthKey].weeks[weekKey]) {
+          grouped[monthKey].weeks[weekKey] = {
+            weekKey,
+            weekOfMonth,
+            date,
+            transactions: [],
+            total: 0
+          };
+        }
+        
+        const amount = parseFloat(t.jumlah) || 0;
+        grouped[monthKey].weeks[weekKey].transactions.push(t);
+        grouped[monthKey].weeks[weekKey].total += amount;
+        grouped[monthKey].total += amount;
+      });
+      
+      return grouped;
+    }
+
+    async function fetchData() {
+      if (!localStorage.getItem(STORAGE_URL)) return;
+      try {
+        const res = await fetch(localStorage.getItem(STORAGE_URL) + "?pin=" + localStorage.getItem(STORAGE_PIN));
+        const data = await res.json();
+        renderHistory(data.history || []);
+        if (balanceVisible) {
+          document.getElementById('sisaBudget').innerText = "Rp " + (parseFloat(data.budget) || 0).toLocaleString('id-ID');
+        }
+      } catch (err) { console.error(err); }
+    }
+
+    document.getElementById("expenseForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      
+      if (!isSessionValid()) {
+        handleSessionTimeout();
+        return;
+      }
+
+      const btn = document.getElementById('submitBtn');
+      btn.innerText = "Saving...";
+      const formData = new URLSearchParams({
+        barang: document.getElementById('barang').value,
+        kategori: document.getElementById('kategori').value,
+        jumlah: document.getElementById('jumlahDisplay').value.replace(/\./g, ''),
+        pin: localStorage.getItem(STORAGE_PIN)
+      });
+      
+      try {
+        await fetch(localStorage.getItem(STORAGE_URL), { method: "POST", body: formData });
+        btn.innerText = "Save Transaction";
+        document.getElementById('expenseForm').reset();
+        fetchData();
+      } catch (err) {
+        console.error(err);
+        btn.innerText = "Error! Try again";
+        setTimeout(() => { btn.innerText = "Save Transaction"; }, 2000);
+      }
+    });
+
+    // ===== RENDER LOGIC WITH TOGGLE SUPPORTS =====
+    function renderHistory(transactions) {
+      const list = document.getElementById('expenseList');
+      
+      if (!transactions || transactions.length === 0) {
+        list.innerHTML = `<p class="text-center text-slate-400 py-6 text-sm">No recent transactions found.</p>`;
+        return;
+      }
+
+      const grouped = groupByMonthAndWeek(transactions);
+      const sortedMonths = Object.keys(grouped).sort((a, b) => b.localeCompare(a));
+
+      list.innerHTML = sortedMonths.map(monthKey => {
+        const monthGroup = grouped[monthKey];
+        const monthLabel = formatMonth(monthGroup.date);
+        const monthDomId = `month-${monthKey}`;
+        
+        const sortedWeeks = Object.keys(monthGroup.weeks)
+          .sort((a, b) => monthGroup.weeks[b].weekOfMonth - monthGroup.weeks[a].weekOfMonth);
+        
+        const weeksHtml = sortedWeeks.map(weekKey => {
+          const weekGroup = monthGroup.weeks[weekKey];
+          const { startDate, endDate } = getWeekDateRange(weekGroup.date);
+          const weekLabel = `Week ${weekGroup.weekOfMonth} • ${formatDateShort(startDate)} - ${formatDateShort(endDate)}`;
+          const weekDomId = `week-${weekKey}`;
+
+          const transactionsHtml = weekGroup.transactions
+            .sort((a, b) => new Date(b.date || new Date()) - new Date(a.date || new Date()))
+            .map(t => {
+              const amount = parseFloat(t.jumlah) || 0;
+              const category = t.kategori || 'Others';
+              const tDate = new Date(t.date || new Date());
+              const dateStr = formatDateFull(tDate);
+              
+              return `
+                <div class="receipt-item">
+                  <div>
+                    <div class="font-medium text-slate-800 text-[0.8rem]">${t.barang}</div>
+                    <div class="text-slate-500 text-[0.7rem] leading-tight">${category} • ${dateStr}</div>
+                  </div>
+                  <div class="font-semibold text-slate-900 text-[0.8rem]">Rp ${amount.toLocaleString('id-ID')}</div>
+                </div>
+              `;
+            }).join('');
+
+          return `
+            <div class="bg-white p-3 rounded-lg border border-slate-200 shadow-sm">
+              <!-- Header Minggu (Bisa di-toggle) -->
+              <div onclick="toggleSection('${weekDomId}')" class="text-[0.7rem] font-bold text-slate-600 mb-2 pb-2 border-b border-dashed border-slate-300 flex justify-between items-center cursor-pointer select-none">
+                <span>${weekLabel}</span>
+                <svg id="arrow-${weekDomId}" xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 transition-transform transform rotate-180 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                </svg>
+              </div>
+              <!-- Konten Transaksi Minggu Ini -->
+              <div id="${weekDomId}" class="space-y-1">
+                ${transactionsHtml}
+                <div class="receipt-total mt-2 pt-2 text-[0.75rem]">
+                  <span class="font-semibold">WEEK TOTAL</span>
+                  <span class="font-bold">Rp ${weekGroup.total.toLocaleString('id-ID')}</span>
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        return `
+          <div class="bg-white p-3 rounded-lg border border-indigo-200 shadow-sm">
+            <!-- Header Bulan (Bisa di-toggle) -->
+            <div onclick="toggleSection('${monthDomId}')" class="flex justify-between items-center mb-3 pb-2 border-b border-dashed border-indigo-200 cursor-pointer select-none">
+              <div class="text-[0.75rem] font-bold text-slate-600">📋 ${monthLabel}</div>
+              <svg id="arrow-${monthDomId}" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transition-transform transform rotate-180 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+            <!-- Konten Minggu-minggu di Bulan Ini -->
+            <div id="${monthDomId}" class="space-y-2">
+              ${weeksHtml}
+            </div>
+            <div class="mt-3 pt-2 border-t border-slate-900 text-center">
+              <div class="text-[0.8rem] font-bold text-indigo-700">
+                MONTH TOTAL: Rp ${monthGroup.total.toLocaleString('id-ID')}
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    checkLogin();
+  </script>
   </div>
 
   <script>
